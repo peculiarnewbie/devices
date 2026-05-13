@@ -1,0 +1,33 @@
+{
+  "name": "simple-devices",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev",
+    "deploy": "pnpm run build && alchemy deploy alchemy.run.ts",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@effect/platform-node": "4.0.0-beta.64",
+    "alchemy": "2.0.0-beta.36",
+    "effect": "4.0.0-beta.64",
+    "solid-js": "^1.9.11"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.7.0",
+    "@cloudflare/workers-types": "^4",
+    "@tailwindcss/vite": "^4.1.6",
+    "tailwindcss": "^4.1.6",
+    "typescript": "^5",
+    "vite": "^8",
+    "vite-plugin-solid": "^2"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "sharp",
+      "workerd"
+    ]
+  },
+  "packageManager": "pnpm@11.1.1"
+}

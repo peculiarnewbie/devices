@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+BINARY="$HOME/.local/bin/simple-devices-agent"
+PLIST="$HOME/Library/LaunchAgents/com.simple-devices.agent.plist"
+PORT="${SIMPLE_DEVICES_PORT:-9099}"
+
+echo "=== simple-devices leaf agent installer (macOS) ==="
+
+if [ ! -f "$BINARY" ]; then
+    echo "Error: binary not found at $BINARY"
+    echo "Build the agent first: GOOS=darwin GOARCH=arm64 go build -o $BINARY ./cmd/agent"
+    exit 1
+fi
+
+echo "Binary: $BINARY"
+echo "Port: $PORT"
+
+mkdir -p "$(dirname "$PLIST")"
+
+cat > "$PLIST" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.simple-devices.agent</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>$BINARY</string>
+    </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>SIMPLE_DEVICES_PORT</key>
+        <string>$PORT</string>
+    </dict>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/tmp/simple-devices-agent.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/simple-devices-agent.log</string>
+</dict>
+</plist>
+EOF
+
+launchctl unload "$PLIST" 2>/dev/null || true
+launchctl load "$PLIST"
+
+echo "Service installed and started."
+echo "Check status: launchctl list | grep simple-devices"
+echo "Check logs:   tail -f /tmp/simple-devices-agent.log"

@@ -1,0 +1,11 @@
+node_modules
+dist
+.alchemy
+go/simple-devices
+go/cmd/agent/agent
+go/cmd/hub/hub
+go/cmd/agent/agent.exe
+go/cmd/hub/hub.exe
+.DS_Store
+*.log
+.wrangler
