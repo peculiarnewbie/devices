@@ -53,11 +53,12 @@ type WSMessage struct {
 }
 
 type TailscalePeer struct {
-	HostName string `json:"HostName"`
-	DNSName  string `json:"DNSName"`
-	TailAddr string `json:"TailAddr"`
-	Online   bool   `json:"Online"`
-	OS       string `json:"OS"`
+	HostName    string   `json:"HostName"`
+	DNSName     string   `json:"DNSName"`
+	TailAddr    string   `json:"TailAddr"`
+	TailscaleIPs []string `json:"TailscaleIPs"`
+	Online      bool     `json:"Online"`
+	OS          string   `json:"OS"`
 }
 
 type TailscaleStatus struct {
@@ -180,16 +181,19 @@ func pollDevice(peer TailscalePeer) DeviceState {
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
+		log.Printf("poll %s (%s) failed: %v", peer.HostName, peer.TailAddr, err)
 		return d
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
+		log.Printf("poll %s (%s) returned status=%d", peer.HostName, peer.TailAddr, resp.StatusCode)
 		return d
 	}
 
 	var status DeviceState
 	if err := json.NewDecoder(resp.Body).Decode(&status); err != nil {
+		log.Printf("poll %s (%s) decode failed: %v", peer.HostName, peer.TailAddr, err)
 		return d
 	}
 
@@ -212,8 +216,12 @@ func getTailscalePeers() ([]TailscalePeer, error) {
 	}
 
 	peers := make([]TailscalePeer, 0, len(status.Peer)+1)
-	for ip, peer := range status.Peer {
-		peer.TailAddr = ip
+	for _, peer := range status.Peer {
+		peer.TailAddr = firstTailscaleIP(peer)
+		if peer.TailAddr == "" {
+			log.Printf("tailscale: skipping %s, no tailscale IP", peer.HostName)
+			continue
+		}
 		peers = append(peers, peer)
 	}
 	status.Self.TailAddr = "127.0.0.1"
@@ -228,6 +236,19 @@ func getTailscalePeers() ([]TailscalePeer, error) {
 	log.Printf("tailscale: %d peers (%d online)", len(status.Peer), online)
 
 	return peers, nil
+}
+
+func firstTailscaleIP(peer TailscalePeer) string {
+	if peer.TailAddr != "" {
+		return peer.TailAddr
+	}
+	for _, ip := range peer.TailscaleIPs {
+		parsed := net.ParseIP(ip)
+		if parsed != nil && parsed.To4() != nil {
+			return parsed.String()
+		}
+	}
+	return ""
 }
 
 func executeCommand(msg WSMessage) WSMessage {

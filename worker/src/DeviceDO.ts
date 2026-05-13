@@ -26,11 +26,29 @@ type WSMessage =
   | { type: "ack"; device: string; action: string }
   | { type: "state"; devices: DeviceState[] };
 
+interface WSAttachment {
+  role?: "hub" | "ui";
+}
+
 export class DeviceDO extends DurableObject {
   private devices = new Map<string, DeviceState>();
   private wsRoles = new Map<WebSocket, "hub" | "ui">();
   private hubWS: WebSocket | null = null;
   private lastRefresh = 0;
+
+  constructor(ctx: DurableObjectState, env: Env) {
+    super(ctx, env);
+
+    for (const ws of this.ctx.getWebSockets()) {
+      const attachment = ws.deserializeAttachment() as WSAttachment | null;
+      if (attachment?.role) {
+        this.wsRoles.set(ws, attachment.role);
+        if (attachment.role === "hub") {
+          this.hubWS = ws;
+        }
+      }
+    }
+  }
 
   async fetch(request: Request): Promise<Response> {
     if (request.headers.get("Upgrade") !== "websocket") {
@@ -77,9 +95,11 @@ export class DeviceDO extends DurableObject {
     switch (msg.type) {
       case "register": {
         this.wsRoles.set(ws, msg.role);
+        ws.serializeAttachment({ role: msg.role } satisfies WSAttachment);
         if (msg.role === "hub") {
           this.hubWS = ws;
           console.log("hub registered");
+          this.broadcastState();
         } else {
           console.log("ui registered, hub:", !!this.hubWS);
           this.sendTo(ws, { type: "state", hub_connected: !!this.hubWS, devices: Array.from(this.devices.values()) });
@@ -90,7 +110,10 @@ export class DeviceDO extends DurableObject {
         break;
       }
       case "refresh": {
-        if (!this.hubWS) return;
+        if (!this.hubWS) {
+          this.broadcastState();
+          return;
+        }
         const now = Date.now();
         if (now - this.lastRefresh < 3000) return;
         this.lastRefresh = now;
@@ -164,6 +187,7 @@ export class DeviceDO extends DurableObject {
     this.wsRoles.delete(ws);
     if (role === "hub") {
       this.hubWS = null;
+      this.broadcastState();
     }
   }
 
