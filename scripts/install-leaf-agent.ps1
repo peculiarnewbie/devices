@@ -20,19 +20,17 @@ $serviceName = "SimpleDevicesAgent"
 
 $existing = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
 if ($existing) {
-    Stop-Service $serviceName -Force
-    sc.exe delete $serviceName
+    Stop-Service $serviceName -Force -ErrorAction SilentlyContinue
+    sc.exe delete $serviceName | Out-Null
+    Start-Sleep -Seconds 2
 }
 
-New-Service -Name $serviceName `
-    -BinaryPathName """$Binary""" `
-    -DisplayName "simple-devices agent" `
-    -Description "Lightweight device state agent for simple-devices" `
-    -StartupType Automatic
+sc.exe create $serviceName binPath= "`"$Binary`"" start= auto DisplayName= "simple-devices agent" | Out-Null
+sc.exe description $serviceName "Lightweight device state agent for simple-devices" | Out-Null
 
-Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\$serviceName" -Name "Environment" -Value "SIMPLE_DEVICES_PORT=$Port"
+Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\$serviceName" -Name "Environment" -Value "SIMPLE_DEVICES_PORT=$Port" -ErrorAction SilentlyContinue
 
-Start-Service $serviceName
+sc.exe start $serviceName
 
 Write-Host "Service installed and started."
 Write-Host "Check status: Get-Service $serviceName"
