@@ -9,3 +9,5 @@ go/cmd/hub/hub.exe
 .DS_Store
 *.log
 .wrangler
+go/hub
+go/simple-devices-leaf
