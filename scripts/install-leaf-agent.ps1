@@ -18,18 +18,11 @@ Write-Host "Port: $Port"
 
 $serviceName = "SimpleDevicesAgent"
 
-$existing = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
-if ($existing) {
-    Stop-Service $serviceName -Force -ErrorAction SilentlyContinue
-    sc.exe delete $serviceName | Out-Null
-    Start-Sleep -Seconds 2
-}
+sc.exe delete $serviceName 2>&1 | Out-Null
+Remove-Item -Path "HKLM:\SYSTEM\CurrentControlSet\Services\$serviceName" -Force -ErrorAction SilentlyContinue
+Start-Sleep -Seconds 2
 
-sc.exe create $serviceName binPath= "`"$Binary`"" start= auto DisplayName= "simple-devices agent" | Out-Null
-sc.exe description $serviceName "Lightweight device state agent for simple-devices" | Out-Null
-
-Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\$serviceName" -Name "Environment" -Value "SIMPLE_DEVICES_PORT=$Port" -ErrorAction SilentlyContinue
-
+sc.exe create $serviceName binPath= $Binary start= auto
 sc.exe start $serviceName
 
 Write-Host "Service installed and started."

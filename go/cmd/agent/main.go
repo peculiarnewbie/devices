@@ -51,7 +51,7 @@ type StatusResponse struct {
 
 const port = "9099"
 
-func main() {
+func run() error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", handleHealth)
 	mux.HandleFunc("/status", handleStatus)
@@ -60,9 +60,7 @@ func main() {
 	mux.HandleFunc("/wake", handleWake)
 
 	log.Printf("agent listening on :%s (os=%s arch=%s)", port, runtime.GOOS, runtime.GOARCH)
-	if err := http.ListenAndServe(":"+port, mux); err != nil {
-		log.Fatal(err)
-	}
+	return http.ListenAndServe(":"+port, mux)
 }
 
 func handleHealth(w http.ResponseWriter, r *http.Request) {
