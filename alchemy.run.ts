@@ -1,5 +1,6 @@
 import * as Alchemy from "alchemy";
 import * as Cloudflare from "alchemy/Cloudflare";
+import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
 
 export default Alchemy.Stack(
@@ -15,6 +16,8 @@ export default Alchemy.Stack(
       className: "DeviceDO",
     });
 
+    const hubSecret = yield* Config.redacted("HUB_SECRET");
+
     const worker = yield* Cloudflare.Worker("DeviceWorker", {
       name: `simple-devices-${stage}`,
       main: "worker/src/index.ts",
@@ -29,6 +32,7 @@ export default Alchemy.Stack(
         AUTH_ISSUER_URL: "https://auth.peculiarnewbie.com",
         AUTH_CLIENT_ID: "simple-devices",
         OWNER_EMAIL: "peculiarnewbie@gmail.com",
+        HUB_SECRET: hubSecret,
       },
     });
 

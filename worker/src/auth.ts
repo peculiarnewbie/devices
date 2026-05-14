@@ -7,6 +7,7 @@ export type AuthEnv = {
   APP_PUBLIC_URL: string;
   OWNER_EMAIL: string;
   DEV_AUTH_EMAIL?: string;
+  HUB_SECRET?: string;
 };
 
 export type Session = {

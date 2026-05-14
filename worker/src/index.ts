@@ -19,7 +19,10 @@ export default {
         return await auth.sessionEndpoint(request);
 
       if (pathname === "/ws") {
-        await auth.requireSession(request);
+        const hubSecret = request.headers.get("X-Hub-Secret");
+        if (hubSecret !== env.HUB_SECRET) {
+          await auth.requireSession(request);
+        }
         const id = env.DEVICE_HUB.idFromName("hub");
         return env.DEVICE_HUB.get(id).fetch(request);
       }

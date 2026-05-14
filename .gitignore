@@ -6,3 +6,4 @@ go/simple-devices.exe
 .DS_Store
 *.log
 .wrangler
+.env

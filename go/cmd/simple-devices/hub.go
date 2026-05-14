@@ -18,12 +18,19 @@ const pollTimeout = 4 * time.Second
 
 var selfHostname string
 
-func runHub(hubURL string) error {
+func runHub(hubURL, secret string) error {
 	selfHostname, _ = os.Hostname()
 
 	ctx := context.Background()
 
-	conn, _, err := websocket.Dial(ctx, hubURL, nil)
+	header := http.Header{}
+	if secret != "" {
+		header.Set("X-Hub-Secret", secret)
+	}
+
+	conn, _, err := websocket.Dial(ctx, hubURL, &websocket.DialOptions{
+		HTTPHeader: header,
+	})
 	if err != nil {
 		return fmt.Errorf("dial: %w", err)
 	}
