@@ -38,6 +38,15 @@ export class DeviceDO extends DurableObject {
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
 
+    this.ctx.blockConcurrencyWhile(async () => {
+      const stored = await this.ctx.storage.get<Record<string, DeviceState>>("devices");
+      if (stored) {
+        for (const [key, val] of Object.entries(stored)) {
+          this.devices.set(key, val);
+        }
+      }
+    });
+
     for (const ws of this.ctx.getWebSockets()) {
       const attachment = ws.deserializeAttachment() as WSAttachment | null;
       if (attachment?.role) {
@@ -63,11 +72,11 @@ export class DeviceDO extends DurableObject {
     return new Response(null, { status: 101, webSocket: client });
   }
 
-  webSocketMessage(ws: WebSocket, data: string | ArrayBuffer) {
+  async webSocketMessage(ws: WebSocket, data: string | ArrayBuffer) {
     try {
       const text = typeof data === "string" ? data : new TextDecoder().decode(data);
       const msg = JSON.parse(text) as WSMessage;
-      this.handleMessage(ws, msg);
+      await this.handleMessage(ws, msg);
     } catch (e) {
       console.error("DO message error:", e);
     }
@@ -90,7 +99,7 @@ export class DeviceDO extends DurableObject {
     this.sendTo(ws, { type: "error", message, ...(device ? { device } : {}), ...(action ? { action } : {}) });
   }
 
-  private handleMessage(ws: WebSocket, msg: WSMessage) {
+  private async handleMessage(ws: WebSocket, msg: WSMessage) {
     switch (msg.type) {
       case "register": {
         this.wsRoles.set(ws, msg.role);
@@ -123,16 +132,16 @@ export class DeviceDO extends DurableObject {
           const existing = this.devices.get(d.hostname);
           if (d.online) {
             d.last_seen = Date.now();
-          } else {
-            if (existing) {
-              if (!d.subnet) d.subnet = existing.subnet;
-              if (!d.macs?.length) d.macs = existing.macs;
-              if (!d.interfaces?.length) d.interfaces = existing.interfaces;
-              if (!d.last_seen) d.last_seen = existing.last_seen;
-            }
+          }
+          if (existing) {
+            if (!d.macs?.length) d.macs = existing.macs;
+            if (!d.interfaces?.length) d.interfaces = existing.interfaces;
+            if (!d.subnet) d.subnet = existing.subnet;
+            if (!d.last_seen) d.last_seen = existing.last_seen;
           }
           this.devices.set(d.hostname, d);
         }
+        await this.ctx.storage.put("devices", Object.fromEntries(this.devices));
         this.broadcastState();
         break;
       }
