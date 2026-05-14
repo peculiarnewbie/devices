@@ -27,6 +27,7 @@
   "pnpm": {
     "onlyBuiltDependencies": [
       "esbuild",
+      "msgpackr-extract",
       "sharp",
       "workerd"
     ]
