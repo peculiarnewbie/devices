@@ -1,20 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BINARY="$HOME/.local/bin/simple-devices-agent"
+BINARY="$HOME/.local/bin/simple-devices"
 PLIST="$HOME/Library/LaunchAgents/com.simple-devices.agent.plist"
-PORT="${SIMPLE_DEVICES_PORT:-9099}"
 
 echo "=== simple-devices leaf agent installer (macOS) ==="
 
 if [ ! -f "$BINARY" ]; then
     echo "Error: binary not found at $BINARY"
-    echo "Build the agent first: GOOS=darwin GOARCH=arm64 go build -o $BINARY ./cmd/agent"
+    echo "Build first: GOOS=darwin GOARCH=arm64 go build -o $BINARY ./cmd/simple-devices"
     exit 1
 fi
 
 echo "Binary: $BINARY"
-echo "Port: $PORT"
 
 mkdir -p "$(dirname "$PLIST")"
 
@@ -29,11 +27,6 @@ cat > "$PLIST" <<EOF
     <array>
         <string>$BINARY</string>
     </array>
-    <key>EnvironmentVariables</key>
-    <dict>
-        <key>SIMPLE_DEVICES_PORT</key>
-        <string>$PORT</string>
-    </dict>
     <key>RunAtLoad</key>
     <true/>
     <key>KeepAlive</key>

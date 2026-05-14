@@ -1,20 +1,18 @@
 #Requires -RunAsAdministrator
 
 param(
-    [string]$Binary = "$env:USERPROFILE\.local\bin\simple-devices-agent.exe",
-    [string]$Port = "9099"
+    [string]$Binary = "$env:USERPROFILE\.local\bin\simple-devices.exe"
 )
 
 Write-Host "=== simple-devices leaf agent installer (Windows) ==="
 
 if (-not (Test-Path $Binary)) {
     Write-Host "Error: binary not found at $Binary"
-    Write-Host "Build the agent first: GOOS=windows GOARCH=amd64 go build -o $Binary .\cmd\agent"
+    Write-Host "Build first: GOOS=windows GOARCH=amd64 go build -o $Binary .\cmd\simple-devices"
     exit 1
 }
 
 Write-Host "Binary: $Binary"
-Write-Host "Port: $Port"
 
 $serviceName = "SimpleDevicesAgent"
 

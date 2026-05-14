@@ -1,26 +1,26 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BINARY="$HOME/.local/bin/simple-devices-hub"
+BINARY="$HOME/.local/bin/simple-devices"
 SERVICE_FILE="/etc/systemd/system/simple-devices-hub.service"
-DO_URL="${SIMPLE_DEVICES_DO:-}"
+HUB_URL="${SIMPLE_DEVICES_HUB:-}"
 
 echo "=== simple-devices hub agent installer (Linux) ==="
 
-if [ -z "$DO_URL" ]; then
-    echo "Error: SIMPLE_DEVICES_DO env var must be set to the wss:// URL of your DO"
-    echo "Example: SIMPLE_DEVICES_DO=wss://simple-devices.yourname.workers.dev/ws ./install-hub-agent.sh"
+if [ -z "$HUB_URL" ]; then
+    echo "Error: SIMPLE_DEVICES_HUB env var must be set to the wss:// URL of your DO"
+    echo "Example: SIMPLE_DEVICES_HUB=wss://simple-devices.yourname.workers.dev/ws ./install-hub-agent.sh"
     exit 1
 fi
 
 if [ ! -f "$BINARY" ]; then
     echo "Error: binary not found at $BINARY"
-    echo "Build the hub first: GOOS=linux GOARCH=amd64 go build -o $BINARY ./cmd/hub"
+    echo "Build first: GOOS=linux GOARCH=amd64 go build -o $BINARY ./cmd/simple-devices"
     exit 1
 fi
 
 echo "Binary: $BINARY"
-echo "DO URL: $DO_URL"
+echo "Hub URL: $HUB_URL"
 
 sudo tee "$SERVICE_FILE" > /dev/null <<EOF
 [Unit]
@@ -30,7 +30,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart=$BINARY -do=$DO_URL
+ExecStart=$BINARY -hub=$HUB_URL
 Restart=always
 RestartSec=10
 StandardOutput=journal

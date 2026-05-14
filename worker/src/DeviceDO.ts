@@ -34,7 +34,6 @@ export class DeviceDO extends DurableObject {
   private devices = new Map<string, DeviceState>();
   private wsRoles = new Map<WebSocket, "hub" | "ui">();
   private hubWS: WebSocket | null = null;
-  private lastRefresh = 0;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -114,9 +113,6 @@ export class DeviceDO extends DurableObject {
           this.broadcastState();
           return;
         }
-        const now = Date.now();
-        if (now - this.lastRefresh < 3000) return;
-        this.lastRefresh = now;
         this.sendTo(this.hubWS, { type: "refresh" });
         break;
       }

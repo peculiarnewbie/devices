@@ -3,96 +3,27 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"log"
 	"net"
 	"net/http"
-	"os/exec"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/coder/websocket"
 )
 
-type DeviceState struct {
-	Hostname    string `json:"hostname"`
-	TailscaleIP string `json:"tailscale_ip"`
-	OS          string `json:"os"`
-	Macs        []string `json:"macs"`
-	Interfaces  []struct {
-		Name  string   `json:"name"`
-		MAC   string   `json:"mac"`
-		Addrs []string `json:"addrs"`
-	} `json:"interfaces"`
-	Subnet     string  `json:"subnet"`
-	Uptime     uint64  `json:"uptime"`
-	CPUPercent float64 `json:"cpu_percent"`
-	Memory     struct {
-		UsedGB  float64 `json:"used_gb"`
-		TotalGB float64 `json:"total_gb"`
-	} `json:"memory"`
-	Disk struct {
-		UsedGB  float64 `json:"used_gb"`
-		TotalGB float64 `json:"total_gb"`
-	} `json:"disk"`
-	Online   bool  `json:"online"`
-	LastSeen int64 `json:"last_seen"`
-}
+const pollTimeout = 4 * time.Second
 
-type WSMessage struct {
-	Type    string        `json:"type"`
-	Role    string        `json:"role,omitempty"`
-	Devices []DeviceState `json:"devices,omitempty"`
-	Device  string        `json:"device,omitempty"`
-	Action  string        `json:"action,omitempty"`
-	MAC     string        `json:"mac,omitempty"`
-	Subnet  string        `json:"subnet,omitempty"`
-	OK      bool          `json:"ok,omitempty"`
-	Message string        `json:"message,omitempty"`
-}
+var selfHostname string
 
-type TailscalePeer struct {
-	HostName    string   `json:"HostName"`
-	DNSName     string   `json:"DNSName"`
-	TailAddr    string   `json:"TailAddr"`
-	TailscaleIPs []string `json:"TailscaleIPs"`
-	Online      bool     `json:"Online"`
-	OS          string   `json:"OS"`
-}
+func runHub(hubURL string) error {
+	selfHostname, _ = os.Hostname()
 
-type TailscaleStatus struct {
-	Peer map[string]TailscalePeer `json:"Peer"`
-	Self TailscalePeer            `json:"Self"`
-}
-
-const (
-	leafPort    = "9099"
-	pollTimeout = 4 * time.Second
-)
-
-var doURL = flag.String("do", "", "wss:// url of the Durable Object (required)")
-
-func main() {
-	flag.Parse()
-	if *doURL == "" {
-		log.Fatal("-do flag is required (e.g. wss://simple-devices.<name>.workers.dev/ws)")
-	}
-
-	log.Printf("hub starting, do=%s", *doURL)
-
-	for {
-		if err := connectAndServe(*doURL); err != nil {
-			log.Printf("websocket error: %v, reconnecting in 5s", err)
-			time.Sleep(5 * time.Second)
-		}
-	}
-}
-
-func connectAndServe(url string) error {
 	ctx := context.Background()
 
-	conn, _, err := websocket.Dial(ctx, url, nil)
+	conn, _, err := websocket.Dial(ctx, hubURL, nil)
 	if err != nil {
 		return fmt.Errorf("dial: %w", err)
 	}
@@ -112,7 +43,7 @@ func connectAndServe(url string) error {
 
 		switch msg.Type {
 		case "refresh":
-			devices := pollAllDevices(ctx)
+			devices := pollAllDevices()
 			if err := wsjsonWrite(ctx, conn, WSMessage{
 				Type:    "update",
 				Devices: devices,
@@ -129,7 +60,7 @@ func connectAndServe(url string) error {
 	}
 }
 
-func pollAllDevices(ctx context.Context) []DeviceState {
+func pollAllDevices() []DeviceState {
 	peers, err := getTailscalePeers()
 	if err != nil {
 		log.Printf("failed to get tailscale peers: %v", err)
@@ -142,9 +73,10 @@ func pollAllDevices(ctx context.Context) []DeviceState {
 	ch := make(chan DeviceState, len(peers))
 
 	for _, peer := range peers {
-		go func(p TailscalePeer) {
+		p := peer
+		go func() {
 			ch <- pollDevice(p)
-		}(peer)
+		}()
 	}
 
 	for range peers {
@@ -163,6 +95,14 @@ func pollAllDevices(ctx context.Context) []DeviceState {
 }
 
 func pollDevice(peer TailscalePeer) DeviceState {
+	if peer.TailAddr == "127.0.0.1" {
+		state := collectStatus()
+		state.Online = true
+		state.TailscaleIP = "127.0.0.1"
+		state.LastSeen = time.Now().UnixMilli()
+		return *state
+	}
+
 	d := DeviceState{
 		Hostname:    peer.HostName,
 		TailscaleIP: peer.TailAddr,
@@ -170,7 +110,7 @@ func pollDevice(peer TailscalePeer) DeviceState {
 		Online:      false,
 	}
 
-	url := fmt.Sprintf("http://%s:%s/status", peer.TailAddr, leafPort)
+	url := fmt.Sprintf("http://%s:9099/status", peer.TailAddr)
 	ctx, cancel := context.WithTimeout(context.Background(), pollTimeout)
 	defer cancel()
 
@@ -203,52 +143,8 @@ func pollDevice(peer TailscalePeer) DeviceState {
 	return status
 }
 
-func getTailscalePeers() ([]TailscalePeer, error) {
-	cmd := exec.Command("tailscale", "status", "--json")
-	out, err := cmd.Output()
-	if err != nil {
-		return nil, fmt.Errorf("tailscale status failed: %w", err)
-	}
-
-	var status TailscaleStatus
-	if err := json.Unmarshal(out, &status); err != nil {
-		return nil, fmt.Errorf("parse tailscale status: %w", err)
-	}
-
-	peers := make([]TailscalePeer, 0, len(status.Peer)+1)
-	for _, peer := range status.Peer {
-		peer.TailAddr = firstTailscaleIP(peer)
-		if peer.TailAddr == "" {
-			log.Printf("tailscale: skipping %s, no tailscale IP", peer.HostName)
-			continue
-		}
-		peers = append(peers, peer)
-	}
-	status.Self.TailAddr = "127.0.0.1"
-	peers = append(peers, status.Self)
-
-	online := 0
-	for _, p := range peers {
-		if p.Online {
-			online++
-		}
-	}
-	log.Printf("tailscale: %d peers (%d online)", len(status.Peer), online)
-
-	return peers, nil
-}
-
-func firstTailscaleIP(peer TailscalePeer) string {
-	if peer.TailAddr != "" {
-		return peer.TailAddr
-	}
-	for _, ip := range peer.TailscaleIPs {
-		parsed := net.ParseIP(ip)
-		if parsed != nil && parsed.To4() != nil {
-			return parsed.String()
-		}
-	}
-	return ""
+func isSelf(hostname string) bool {
+	return hostname == "" || hostname == selfHostname
 }
 
 func executeCommand(msg WSMessage) WSMessage {
@@ -263,13 +159,21 @@ func executeCommand(msg WSMessage) WSMessage {
 }
 
 func executeWake(msg WSMessage) WSMessage {
-	mac := msg.MAC
-	if mac == "" {
+	if msg.MAC == "" {
 		log.Printf("wol: no mac for %s", msg.Device)
 		return WSMessage{Type: "command_result", Device: msg.Device, Action: "wake", OK: false, Message: fmt.Sprintf("no MAC address cached for %s", msg.Device)}
 	}
 
-	log.Printf("wol: waking %s (mac=%s subnet=%s)", msg.Device, mac, msg.Subnet)
+	log.Printf("wol: waking %s (mac=%s subnet=%s)", msg.Device, msg.MAC, msg.Subnet)
+
+	if isSelf(msg.Device) {
+		if err := wolSend(msg.MAC); err != nil {
+			log.Printf("wol: self-send failed: %v", err)
+			return WSMessage{Type: "command_result", Device: msg.Device, Action: "wake", OK: false, Message: fmt.Sprintf("wol failed: %v", err)}
+		}
+		log.Printf("wol: sent locally")
+		return WSMessage{Type: "command_result", Device: msg.Device, Action: "wake", OK: true, Message: "magic packet sent locally"}
+	}
 
 	wolPeer := findWoLPeer(msg.Device, msg.Subnet)
 	if wolPeer == "" {
@@ -277,8 +181,8 @@ func executeWake(msg WSMessage) WSMessage {
 		return WSMessage{Type: "command_result", Device: msg.Device, Action: "wake", OK: false, Message: fmt.Sprintf("no online peer on same subnet as %s", msg.Device)}
 	}
 
-	url := fmt.Sprintf("http://%s:%s/wake", wolPeer, leafPort)
-	body := fmt.Sprintf(`{"mac":"%s"}`, mac)
+	url := fmt.Sprintf("http://%s:9099/wake", wolPeer)
+	body := fmt.Sprintf(`{"mac":"%s"}`, msg.MAC)
 
 	ctx, cancel := context.WithTimeout(context.Background(), pollTimeout)
 	defer cancel()
@@ -298,7 +202,23 @@ func executeWake(msg WSMessage) WSMessage {
 }
 
 func executeDeviceAction(hostname, action string) WSMessage {
-	url := fmt.Sprintf("http://%s:%s/%s", hostname, leafPort, action)
+	if isSelf(hostname) {
+		var err error
+		switch action {
+		case "sleep":
+			err = suspend()
+		case "shutdown":
+			err = shutdown()
+		}
+		if err != nil {
+			log.Printf("%s self failed: %v", action, err)
+			return WSMessage{Type: "command_result", Device: hostname, Action: action, OK: false, Message: fmt.Sprintf("%s failed: %v", action, err)}
+		}
+		log.Printf("%s self: ok", action)
+		return WSMessage{Type: "command_result", Device: hostname, Action: action, OK: true, Message: fmt.Sprintf("%s sent", action)}
+	}
+
+	url := fmt.Sprintf("http://%s:9099/%s", hostname, action)
 	ctx, cancel := context.WithTimeout(context.Background(), pollTimeout)
 	defer cancel()
 
@@ -311,6 +231,7 @@ func executeDeviceAction(hostname, action string) WSMessage {
 		return WSMessage{Type: "command_result", Device: hostname, Action: action, OK: false, Message: fmt.Sprintf("%s failed: %v", action, err)}
 	}
 	defer resp.Body.Close()
+
 	log.Printf("%s %s: status=%d", action, hostname, resp.StatusCode)
 	return WSMessage{Type: "command_result", Device: hostname, Action: action, OK: true, Message: fmt.Sprintf("%s sent", action)}
 }
@@ -409,4 +330,8 @@ func wsjsonRead(ctx context.Context, conn *websocket.Conn) (WSMessage, error) {
 		return WSMessage{}, err
 	}
 	return msg, nil
+}
+
+func wolSend(mac string) error {
+	return sendWoL(mac)
 }

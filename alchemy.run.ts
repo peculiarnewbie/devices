@@ -20,8 +20,15 @@ export default Alchemy.Stack(
       main: "worker/src/index.ts",
       assets: "dist",
       compatibility: { date: "2026-05-10" },
+      domain: "devices.peculiarnewbie.com",
       bindings: {
         DEVICE_HUB: deviceDO,
+      },
+      env: {
+        APP_PUBLIC_URL: "https://devices.peculiarnewbie.com",
+        AUTH_ISSUER_URL: "https://auth.peculiarnewbie.com",
+        AUTH_CLIENT_ID: "simple-devices",
+        OWNER_EMAIL: "peculiarnewbie@gmail.com",
       },
     });
 

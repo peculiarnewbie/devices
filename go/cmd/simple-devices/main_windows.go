@@ -8,18 +8,17 @@ import (
 	"golang.org/x/sys/windows/svc"
 )
 
-func main() {
+func tryRunAsService() bool {
 	isService, err := svc.IsWindowsService()
 	if err != nil {
-		log.Fatalf("svc.IsWindowsService failed: %v", err)
+		log.Printf("svc.IsWindowsService failed: %v", err)
+		return false
 	}
 	if isService {
 		svc.Run("SimpleDevicesAgent", &agentService{})
-		return
+		return true
 	}
-	if err := run(); err != nil {
-		log.Fatal(err)
-	}
+	return false
 }
 
 type agentService struct{}
@@ -30,7 +29,7 @@ func (s *agentService) Execute(args []string, r <-chan svc.ChangeRequest, change
 
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- run()
+		errCh <- runAgent()
 	}()
 
 	changes <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}

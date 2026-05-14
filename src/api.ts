@@ -1,3 +1,24 @@
+export type AuthState = "loading" | "authenticated" | "unauthenticated";
+
+export async function checkSession(): Promise<AuthState> {
+  try {
+    const res = await fetch("/api/session");
+    if (res.ok) return "authenticated";
+    return "unauthenticated";
+  } catch {
+    return "unauthenticated";
+  }
+}
+
+export function login() {
+  window.location.href = "/api/auth/login";
+}
+
+export async function logout() {
+  await fetch("/api/auth/logout", { method: "POST" });
+  window.location.href = "/";
+}
+
 export interface DeviceState {
   hostname: string;
   tailscale_ip: string;

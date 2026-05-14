@@ -15,7 +15,7 @@ func TestFirstTailscaleIPUsesIPv4FromTailscaleIPs(t *testing.T) {
 
 func TestFirstTailscaleIPKeepsLegacyTailAddr(t *testing.T) {
 	peer := TailscalePeer{
-		TailAddr:    "100.64.1.2",
+		TailAddr:     "100.64.1.2",
 		TailscaleIPs: []string{"100.96.12.34"},
 	}
 
