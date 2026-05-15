@@ -1,5 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
-import * as Schema from "effect/Schema";
+import { decodeUnknownSync } from "effect/Schema";
 import { InboundMessageSchema, type DeviceRow, type DeviceState, type InboundMessage } from "../../src/schema";
 
 function toDeviceState(row: DeviceRow): DeviceState {
@@ -74,7 +74,7 @@ export class DeviceDO extends DurableObject {
   async webSocketMessage(ws: WebSocket, data: string | ArrayBuffer) {
     try {
       const text = typeof data === "string" ? data : new TextDecoder().decode(data);
-      const msg = Schema.decodeUnknownSync(InboundMessageSchema)(JSON.parse(text));
+      const msg = decodeUnknownSync(InboundMessageSchema)(JSON.parse(text));
       await this.handleMessage(ws, msg);
     } catch (e) {
       console.error("DO message error:", e);

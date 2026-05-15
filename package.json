@@ -5,7 +5,11 @@
   "scripts": {
     "dev": "vite dev",
     "deploy": "pnpm run build && alchemy deploy alchemy.run.ts",
-    "build": "vite build"
+    "build": "vite build",
+    "test": "vitest run src/__tests__/ && vitest run --config vitest.worker.config.ts",
+    "test:unit": "vitest run src/__tests__/",
+    "test:worker": "vitest run --config vitest.worker.config.ts",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@effect/platform-node": "4.0.0-beta.64",
@@ -17,12 +21,15 @@
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.7.0",
+    "@cloudflare/vitest-pool-workers": "^0.16.5",
     "@cloudflare/workers-types": "^4",
     "@tailwindcss/vite": "^4.1.6",
     "tailwindcss": "^4.1.6",
     "typescript": "^5",
     "vite": "^8",
-    "vite-plugin-solid": "^2"
+    "vite-plugin-solid": "^2",
+    "vitest": "^4.1.6",
+    "wrangler": "^4.91.0"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

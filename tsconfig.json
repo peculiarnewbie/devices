@@ -18,5 +18,6 @@
     "jsxImportSource": "solid-js",
     "allowJs": true
   },
-  "include": ["src/**/*", "worker/src/**/*", "infra/**/*", "alchemy.run.ts"]
+  "include": ["src/**/*", "worker/src/**/*", "infra/**/*", "alchemy.run.ts"],
+  "exclude": ["**/__tests__/**"]
 }
