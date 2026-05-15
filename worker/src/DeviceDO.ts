@@ -1,37 +1,36 @@
 import { DurableObject } from "cloudflare:workers";
+import * as Schema from "effect/Schema";
+import { InboundMessageSchema, type DeviceRow, type DeviceState, type InboundMessage } from "../../src/schema";
 
-interface DeviceState {
-  hostname: string;
-  tailscale_ip: string;
-  os: string;
-  macs: string[];
-  interfaces: { name: string; mac: string; addrs: string[] }[];
-  subnet: string;
-  uptime: number;
-  cpu_percent: number;
-  memory: { used_gb: number; total_gb: number };
-  disk: { used_gb: number; total_gb: number };
-  online: boolean;
-  last_seen: number;
+function toDeviceState(row: DeviceRow): DeviceState {
+  const identity = {
+    hostname: row.hostname,
+    tailscale_ip: row.tailscale_ip,
+    os: row.os,
+    macs: row.macs,
+    interfaces: row.interfaces,
+    subnet: row.subnet,
+  };
+  if (row.online) {
+    return {
+      ...identity,
+      online: true as const,
+      uptime: row.uptime,
+      cpu_percent: row.cpu_percent,
+      memory: row.memory,
+      disk: row.disk,
+      last_seen: row.last_seen,
+    };
+  }
+  return { ...identity, online: false as const, last_seen: row.last_seen };
 }
-
-type WSMessage =
-  | { type: "register"; role: "hub" | "ui" }
-  | { type: "refresh" }
-  | { type: "update"; devices: DeviceState[] }
-  | { type: "command"; device: string; action: "sleep" | "shutdown" | "wake" }
-  | { type: "execute"; device: string; action: "sleep" | "shutdown" | "wake"; mac?: string; subnet?: string }
-  | { type: "command_result"; device: string; action: string; ok: boolean; message: string }
-  | { type: "error"; device?: string; action?: string; message: string }
-  | { type: "ack"; device: string; action: string }
-  | { type: "state"; devices: DeviceState[] };
 
 interface WSAttachment {
   role?: "hub" | "ui";
 }
 
 export class DeviceDO extends DurableObject {
-  private devices = new Map<string, DeviceState>();
+  private devices = new Map<string, DeviceRow>();
   private wsRoles = new Map<WebSocket, "hub" | "ui">();
   private hubWS: WebSocket | null = null;
 
@@ -39,7 +38,7 @@ export class DeviceDO extends DurableObject {
     super(ctx, env);
 
     this.ctx.blockConcurrencyWhile(async () => {
-      const stored = await this.ctx.storage.get<Record<string, DeviceState>>("devices");
+      const stored = await this.ctx.storage.get<Record<string, DeviceRow>>("devices");
       if (stored) {
         for (const [key, val] of Object.entries(stored)) {
           this.devices.set(key, val);
@@ -75,7 +74,7 @@ export class DeviceDO extends DurableObject {
   async webSocketMessage(ws: WebSocket, data: string | ArrayBuffer) {
     try {
       const text = typeof data === "string" ? data : new TextDecoder().decode(data);
-      const msg = JSON.parse(text) as WSMessage;
+      const msg = Schema.decodeUnknownSync(InboundMessageSchema)(JSON.parse(text));
       await this.handleMessage(ws, msg);
     } catch (e) {
       console.error("DO message error:", e);
@@ -99,7 +98,7 @@ export class DeviceDO extends DurableObject {
     this.sendTo(ws, { type: "error", message, ...(device ? { device } : {}), ...(action ? { action } : {}) });
   }
 
-  private async handleMessage(ws: WebSocket, msg: WSMessage) {
+  private async handleMessage(ws: WebSocket, msg: InboundMessage) {
     switch (msg.type) {
       case "register": {
         this.wsRoles.set(ws, msg.role);
@@ -110,7 +109,7 @@ export class DeviceDO extends DurableObject {
           this.broadcastState();
         } else {
           console.log("ui registered, hub:", !!this.hubWS);
-          this.sendTo(ws, { type: "state", hub_connected: !!this.hubWS, devices: Array.from(this.devices.values()) });
+          this.sendTo(ws, { type: "state", hub_connected: !!this.hubWS, devices: Array.from(this.devices.values()).map(toDeviceState) });
           if (this.hubWS) {
             this.sendTo(this.hubWS, { type: "refresh" });
           }
@@ -128,18 +127,17 @@ export class DeviceDO extends DurableObject {
       case "update": {
         const role = this.wsRoles.get(ws);
         if (role !== "hub") return;
-        for (const d of msg.devices) {
-          const existing = this.devices.get(d.hostname);
-          if (d.online) {
-            d.last_seen = Date.now();
-          }
-          if (existing) {
-            if (!d.macs?.length) d.macs = existing.macs;
-            if (!d.interfaces?.length) d.interfaces = existing.interfaces;
-            if (!d.subnet) d.subnet = existing.subnet;
-            if (!d.last_seen) d.last_seen = existing.last_seen;
-          }
-          this.devices.set(d.hostname, d);
+        for (const incoming of msg.devices) {
+          const existing = this.devices.get(incoming.hostname);
+          const last_seen = incoming.online ? Date.now() : (incoming.last_seen || (existing?.last_seen ?? Date.now()));
+          const device: DeviceRow = {
+            ...incoming,
+            last_seen,
+            macs: incoming.macs.length > 0 ? incoming.macs : (existing?.macs ?? []),
+            interfaces: incoming.interfaces.length > 0 ? incoming.interfaces : (existing?.interfaces ?? []),
+            subnet: incoming.subnet || (existing?.subnet ?? ""),
+          };
+          this.devices.set(device.hostname, device);
         }
         await this.ctx.storage.put("devices", Object.fromEntries(this.devices));
         this.broadcastState();
@@ -200,7 +198,7 @@ export class DeviceDO extends DurableObject {
     const payload = JSON.stringify({
       type: "state",
       hub_connected: !!this.hubWS,
-      devices: Array.from(this.devices.values()),
+      devices: Array.from(this.devices.values()).map(toDeviceState),
     });
 
     for (const [ws, role] of this.wsRoles) {

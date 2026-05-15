@@ -6,6 +6,7 @@ import {
   logout,
   type AuthState,
   type DeviceState,
+  type DeviceOnline,
   type CommandResult,
 } from "./api";
 import DeviceCard from "./components/DeviceCard";
@@ -69,12 +70,21 @@ export default function App() {
     const list = [...devices()];
     const key = sortKey();
     if (key === "name") list.sort((a, b) => a.hostname.localeCompare(b.hostname));
-    else if (key === "cpu") list.sort((a, b) => b.cpu_percent - a.cpu_percent);
-    else if (key === "memory")
-      list.sort(
-        (a, b) => b.memory.used_gb / b.memory.total_gb - a.memory.used_gb / a.memory.total_gb,
-      );
-    else if (key === "uptime") list.sort((a, b) => b.uptime - a.uptime);
+    else if (key === "cpu") list.sort((a, b) => {
+      if (!a.online) return 1;
+      if (!b.online) return -1;
+      return b.cpu_percent - a.cpu_percent;
+    });
+    else if (key === "memory") list.sort((a, b) => {
+      if (!a.online) return 1;
+      if (!b.online) return -1;
+      return b.memory.used_gb / b.memory.total_gb - a.memory.used_gb / a.memory.total_gb;
+    });
+    else if (key === "uptime") list.sort((a, b) => {
+      if (!a.online) return 1;
+      if (!b.online) return -1;
+      return b.uptime - a.uptime;
+    });
     return list;
   };
 

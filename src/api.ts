@@ -1,4 +1,7 @@
+import type { DeviceState, DeviceOnline, DeviceOffline } from "./schema";
+
 export type AuthState = "loading" | "authenticated" | "unauthenticated";
+export type { DeviceState, DeviceOnline, DeviceOffline };
 
 export async function checkSession(): Promise<AuthState> {
   try {
@@ -17,21 +20,6 @@ export function login() {
 export async function logout() {
   await fetch("/api/auth/logout", { method: "POST" });
   window.location.href = "/";
-}
-
-export interface DeviceState {
-  hostname: string;
-  tailscale_ip: string;
-  os: string;
-  macs: string[];
-  interfaces: { name: string; mac: string; addrs: string[] }[];
-  subnet: string;
-  uptime: number;
-  cpu_percent: number;
-  memory: { used_gb: number; total_gb: number };
-  disk: { used_gb: number; total_gb: number };
-  online: boolean;
-  last_seen: number;
 }
 
 export interface CommandResult {
