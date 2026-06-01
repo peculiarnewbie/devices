@@ -28,6 +28,7 @@ export interface CommandResult {
   ok: boolean;
   message: string;
   timestamp: number;
+  pending?: boolean;
 }
 
 type DeviceCallback = (devices: DeviceState[]) => void;
@@ -56,6 +57,25 @@ function formatLastSeen(ts: number): string {
 }
 
 const STORAGE_KEY = "sd_refresh_interval";
+const MAC_CACHE_KEY = "sd_mac_cache";
+
+export function loadMacCache(): Record<string, readonly string[]> {
+  try {
+    const raw = localStorage.getItem(MAC_CACHE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch { /* noop */ }
+  return {};
+}
+
+function saveMacCache(devices: DeviceState[]) {
+  try {
+    const cache: Record<string, readonly string[]> = {};
+    for (const d of devices) {
+      if (d.macs?.length) cache[d.hostname] = d.macs;
+    }
+    localStorage.setItem(MAC_CACHE_KEY, JSON.stringify(cache));
+  } catch { /* noop */ }
+}
 
 function loadRefreshInterval(): number {
   try {
@@ -109,6 +129,7 @@ export function createDeviceSocket(cb: DeviceCallback, statusCb: StatusCallback,
       try {
         const msg = JSON.parse(event.data);
         if (msg.type === "state" && Array.isArray(msg.devices)) {
+          saveMacCache(msg.devices);
           cb(msg.devices);
           if (hubCb) hubCb(msg.hub_connected === true);
         }

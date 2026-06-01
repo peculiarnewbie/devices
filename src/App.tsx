@@ -4,6 +4,7 @@ import {
   checkSession,
   login,
   logout,
+  loadMacCache,
   type AuthState,
   type DeviceState,
   type DeviceOnline,
@@ -40,10 +41,17 @@ export default function App() {
   const [toasts, setToasts] = createSignal<CommandResult[]>([]);
 
   function showToast(result: CommandResult) {
-    setToasts((prev) => [...prev, result]);
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.timestamp !== result.timestamp));
-    }, 5000);
+    setToasts((prev) => {
+      const filtered = prev.filter(
+        (t) => !(t.pending && t.device === result.device && t.action === result.action),
+      );
+      return [...filtered, result];
+    });
+    if (!result.pending) {
+      setTimeout(() => {
+        setToasts((prev) => prev.filter((t) => t.timestamp !== result.timestamp));
+      }, 5000);
+    }
   }
 
   let { connect, sendCommand, destroy, setRefreshInterval } = createDeviceSocket(
@@ -57,6 +65,21 @@ export default function App() {
     const state = await checkSession();
     setAuth(state);
     if (state === "authenticated") {
+      const cached = loadMacCache();
+      if (Object.keys(cached).length > 0) {
+        setDevices(
+          Object.entries(cached).map(([hostname, macs]) => ({
+            hostname,
+            tailscale_ip: "",
+            os: "",
+            macs,
+            interfaces: [],
+            subnet: "",
+            online: false as const,
+            last_seen: 0,
+          })),
+        );
+      }
       connect();
     }
   });
@@ -216,7 +239,27 @@ export default function App() {
                     device={device}
                     onSleep={() => sendCommand(device.hostname, "sleep")}
                     onShutdown={() => sendCommand(device.hostname, "shutdown")}
-                    onWake={() => sendCommand(device.hostname, "wake")}
+                    onWake={() => {
+                      if (!device.macs?.length) {
+                        showToast({
+                          device: device.hostname,
+                          action: "wake",
+                          ok: false,
+                          message: "no MAC address known — device may need to come online first",
+                          timestamp: Date.now(),
+                        });
+                        return;
+                      }
+                      showToast({
+                        device: device.hostname,
+                        action: "wake",
+                        ok: true,
+                        message: "waking...",
+                        timestamp: Date.now(),
+                        pending: true,
+                      });
+                      sendCommand(device.hostname, "wake");
+                    }}
                   />
                 )}
               </For>
@@ -230,11 +273,12 @@ export default function App() {
               <div
                 class="px-3 py-2 rounded-lg text-[11px] flex items-center gap-2 shadow-lg"
                 classList={{
-                  "bg-emerald-900/90 border border-emerald-800/40 text-emerald-400": toast.ok,
-                  "bg-red-900/90 border border-red-800/40 text-red-400": !toast.ok,
+                  "bg-sky-900/90 border border-sky-800/40 text-sky-400": toast.pending,
+                  "bg-emerald-900/90 border border-emerald-800/40 text-emerald-400": !toast.pending && toast.ok,
+                  "bg-red-900/90 border border-red-800/40 text-red-400": !toast.pending && !toast.ok,
                 }}
               >
-                <span>{toast.ok ? "✓" : "✗"}</span>
+                <span>{toast.pending ? "◌" : toast.ok ? "✓" : "✗"}</span>
                 <span class="text-zinc-400">{toast.device}</span>
                 <span class="text-zinc-600">—</span>
                 <span class="truncate">{toast.message}</span>
