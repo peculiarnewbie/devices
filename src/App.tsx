@@ -54,7 +54,7 @@ export default function App() {
     }
   }
 
-  let { connect, sendCommand, destroy, setRefreshInterval } = createDeviceSocket(
+  let { connect, sendCommand, destroy, setRefreshInterval, refreshNow } = createDeviceSocket(
     (d) => setDevices(d),
     (c) => setConnected(c),
     (h) => setHubConnected(h),
@@ -218,6 +218,13 @@ export default function App() {
                   {(opt) => <option value={opt.value}>{opt.label}</option>}
                 </For>
               </select>
+              <button
+                onClick={refreshNow}
+                class="px-2 py-1 bg-zinc-900 border border-zinc-800 text-[11px] text-zinc-400 rounded-lg hover:bg-zinc-800 hover:text-zinc-300 transition-colors cursor-pointer"
+                title="refresh now"
+              >
+                ↻
+              </button>
             </div>
           </div>
 
