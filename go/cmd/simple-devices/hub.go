@@ -94,6 +94,9 @@ func pollAllDevices() []DeviceState {
 	for _, d := range results {
 		if d.Online {
 			online++
+			log.Printf("  ✓ %s (%s) online", d.Hostname, d.TailscaleIP)
+		} else {
+			log.Printf("  ✗ %s (%s) offline", d.Hostname, d.TailscaleIP)
 		}
 	}
 	log.Printf("polling done: %d/%d online", online, len(results))

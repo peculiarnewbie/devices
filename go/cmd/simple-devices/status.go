@@ -110,6 +110,8 @@ func collectStatus() *DeviceState {
 			UsedGB:  diskUsedGB,
 			TotalGB: diskTotalGB,
 		},
+		Online:   true,
+		LastSeen: time.Now().UnixMilli(),
 	}
 }
 
