@@ -115,6 +115,40 @@ describe("InboundMessageSchema", () => {
     expect(() => decodeUnknownSync(InboundMessageSchema)(msg)).not.toThrow();
   });
 
+  it("accepts an update with empty macs and interfaces (offline device)", () => {
+    const msg = {
+      type: "update" as const,
+      devices: [validRow({ macs: [], interfaces: [], online: false })],
+    };
+    expect(() => decodeUnknownSync(InboundMessageSchema)(msg)).not.toThrow();
+  });
+
+  it("rejects an update with null macs", () => {
+    const msg = {
+      type: "update" as const,
+      devices: [{ ...validRow(), macs: null }],
+    };
+    expect(() => decodeUnknownSync(InboundMessageSchema)(msg)).toThrow();
+  });
+
+  it("rejects an update with null interfaces", () => {
+    const msg = {
+      type: "update" as const,
+      devices: [{ ...validRow(), interfaces: null }],
+    };
+    expect(() => decodeUnknownSync(InboundMessageSchema)(msg)).toThrow();
+  });
+
+  it("rejects an update where any device has null macs (mixed online/offline)", () => {
+    const onlineDevice = validRow({ online: true });
+    const brokenDevice = { ...validRow({ hostname: "offline-node", online: false }), macs: null };
+    const msg = {
+      type: "update" as const,
+      devices: [onlineDevice, brokenDevice],
+    };
+    expect(() => decodeUnknownSync(InboundMessageSchema)(msg)).toThrow();
+  });
+
   it("accepts a command message", () => {
     const msg = { type: "command" as const, device: "node-1", action: "sleep" as const };
     expect(() => decodeUnknownSync(InboundMessageSchema)(msg)).not.toThrow();

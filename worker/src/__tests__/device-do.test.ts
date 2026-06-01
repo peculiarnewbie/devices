@@ -198,4 +198,96 @@ describe("DeviceDO WebSocket", () => {
 
     ui.close();
   });
+
+  it("update with mixed online/offline devices broadcasts all", async () => {
+    const id = env.DEVICE_HUB.idFromName("test-mixed-devices");
+    const hub = await connectWs(id);
+    hub.send(JSON.stringify({ type: "register", role: "hub" }));
+
+    const ui = await connectWs(id);
+    ui.send(JSON.stringify({ type: "register", role: "ui" }));
+    await waitForMessage(ui);
+
+    const onlineDevice = {
+      hostname: "online-node",
+      tailscale_ip: "100.1.2.3",
+      os: "linux",
+      macs: ["aa:bb:cc:dd:ee:ff"],
+      interfaces: [{ name: "eth0", mac: "aa:bb:cc:dd:ee:ff", addrs: ["192.168.1.1/24"] }],
+      subnet: "192.168.1.0/24",
+      uptime: 3600,
+      cpu_percent: 45.2,
+      memory: { used_gb: 4.2, total_gb: 16 },
+      disk: { used_gb: 120, total_gb: 512 },
+      online: true,
+      last_seen: Date.now(),
+    };
+    const offlineDevice = {
+      hostname: "offline-node",
+      tailscale_ip: "100.1.2.4",
+      os: "windows",
+      macs: [],
+      interfaces: [],
+      subnet: "",
+      uptime: 0,
+      cpu_percent: 0,
+      memory: { used_gb: 0, total_gb: 0 },
+      disk: { used_gb: 0, total_gb: 0 },
+      online: false,
+      last_seen: 0,
+    };
+
+    hub.send(JSON.stringify({ type: "update", devices: [onlineDevice, offlineDevice] }));
+
+    const raw = await waitForMessage(ui);
+    const stateMsg = JSON.parse(raw);
+    expect(stateMsg.type).toBe("state");
+    expect(stateMsg.devices).toHaveLength(2);
+
+    const online = stateMsg.devices.find((d: { hostname: string }) => d.hostname === "online-node");
+    const offline = stateMsg.devices.find((d: { hostname: string }) => d.hostname === "offline-node");
+
+    expect(online.online).toBe(true);
+    expect(online.cpu_percent).toBeCloseTo(45.2);
+    expect(offline.online).toBe(false);
+    expect(offline.macs).toEqual([]);
+
+    hub.close();
+    ui.close();
+  });
+
+  it("schema validation error is sent to UI clients", async () => {
+    const id = env.DEVICE_HUB.idFromName("test-schema-error");
+    const hub = await connectWs(id);
+    hub.send(JSON.stringify({ type: "register", role: "hub" }));
+
+    const ui = await connectWs(id);
+    ui.send(JSON.stringify({ type: "register", role: "ui" }));
+    await waitForMessage(ui);
+
+    // Send update with null macs — should fail schema validation
+    const brokenDevice = {
+      hostname: "broken-node",
+      tailscale_ip: "100.1.2.5",
+      os: "linux",
+      macs: null,
+      interfaces: [],
+      subnet: "",
+      uptime: 0,
+      cpu_percent: 0,
+      memory: { used_gb: 0, total_gb: 0 },
+      disk: { used_gb: 0, total_gb: 0 },
+      online: false,
+      last_seen: 0,
+    };
+    hub.send(JSON.stringify({ type: "update", devices: [brokenDevice] }));
+
+    const raw = await waitForMessage(ui);
+    const msg = JSON.parse(raw);
+    expect(msg.type).toBe("error");
+    expect(msg.message).toContain("macs");
+
+    hub.close();
+    ui.close();
+  });
 });
