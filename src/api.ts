@@ -129,11 +129,16 @@ export function createDeviceSocket(cb: DeviceCallback, statusCb: StatusCallback,
       try {
         const msg = JSON.parse(event.data);
         if (msg.type === "state" && Array.isArray(msg.devices)) {
+          const online = msg.devices.filter((d: { online: boolean }) => d.online).map((d: { hostname: string }) => d.hostname);
+          console.log("[ws] state:", online.length, "online —", online.join(", ") || "none", "| hub:", msg.hub_connected);
           saveMacCache(msg.devices);
           cb(msg.devices);
           if (hubCb) hubCb(msg.hub_connected === true);
         }
         if ((msg.type === "error" || msg.type === "command_result") && resultCb) {
+          if (msg.type === "error") {
+            console.error("[ws] DO error:", msg.message);
+          }
           resultCb({
             device: msg.device || "",
             action: msg.action || "",
@@ -172,6 +177,12 @@ export function createDeviceSocket(cb: DeviceCallback, statusCb: StatusCallback,
     }
   }
 
+  function refreshNow() {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: "refresh" }));
+    }
+  }
+
   function destroy() {
     if (refreshTimer) clearInterval(refreshTimer);
     if (reconnectTimer) clearTimeout(reconnectTimer);
@@ -179,7 +190,7 @@ export function createDeviceSocket(cb: DeviceCallback, statusCb: StatusCallback,
     ws = null;
   }
 
-  return { connect, sendCommand, destroy, setRefreshInterval };
+  return { connect, sendCommand, destroy, setRefreshInterval, refreshNow };
 }
 
 export { formatUptime, formatLastSeen };

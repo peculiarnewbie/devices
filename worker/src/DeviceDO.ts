@@ -74,10 +74,28 @@ export class DeviceDO extends DurableObject {
   async webSocketMessage(ws: WebSocket, data: string | ArrayBuffer) {
     try {
       const text = typeof data === "string" ? data : new TextDecoder().decode(data);
-      const msg = decodeUnknownSync(InboundMessageSchema)(JSON.parse(text));
+      const parsed = JSON.parse(text);
+      const role = this.wsRoles.get(ws);
+
+      let msg: InboundMessage;
+      try {
+        msg = decodeUnknownSync(InboundMessageSchema)(parsed);
+      } catch (schemaErr) {
+        const errMsg = schemaErr instanceof Error ? schemaErr.message : String(schemaErr);
+        console.error(`schema validation failed (type=${parsed.type}, role=${role}):`, errMsg);
+        if (role === "hub") {
+          this.broadcastError(`hub message rejected: ${errMsg}`);
+        } else if (role === "ui") {
+          this.sendTo(ws, { type: "error", message: `message rejected: ${errMsg}` });
+        }
+        return;
+      }
+
       await this.handleMessage(ws, msg);
     } catch (e) {
-      console.error("DO message error:", e);
+      const errMsg = e instanceof Error ? e.message : String(e);
+      console.error("DO message error:", errMsg);
+      this.broadcastError(`DO error: ${errMsg}`);
     }
   }
 
@@ -93,9 +111,13 @@ export class DeviceDO extends DurableObject {
     try { ws.send(JSON.stringify(msg)); } catch (e) { console.error("send failed:", e); }
   }
 
-  private sendError(ws: WebSocket, message: string, device?: string, action?: string) {
-    console.warn(`error: ${message} (device=${device || "none"} action=${action || "none"})`);
-    this.sendTo(ws, { type: "error", message, ...(device ? { device } : {}), ...(action ? { action } : {}) });
+  private broadcastError(message: string) {
+    console.warn("broadcasting error:", message);
+    for (const [ws, role] of this.wsRoles) {
+      if (role === "ui") {
+        this.sendTo(ws, { type: "error", message });
+      }
+    }
   }
 
   private async handleMessage(ws: WebSocket, msg: InboundMessage) {
@@ -127,6 +149,7 @@ export class DeviceDO extends DurableObject {
       case "update": {
         const role = this.wsRoles.get(ws);
         if (role !== "hub") return;
+        console.log("update received:", msg.devices?.length, "devices,", msg.devices?.filter(d => d.online).length, "online");
         for (const incoming of msg.devices) {
           const existing = this.devices.get(incoming.hostname);
           const last_seen = incoming.online ? Date.now() : (incoming.last_seen || (existing?.last_seen ?? Date.now()));
@@ -145,17 +168,16 @@ export class DeviceDO extends DurableObject {
       }
       case "command": {
         if (!this.hubWS) {
-          this.sendError(ws, "hub agent not connected", msg.device, msg.action);
+          this.sendTo(ws, { type: "error", message: "hub agent not connected", device: msg.device, action: msg.action });
           return;
         }
         const dev = this.devices.get(msg.device);
         if (!dev) {
-          this.sendError(ws, `device "${msg.device}" not found`, msg.device, msg.action);
+          this.sendTo(ws, { type: "error", message: `device "${msg.device}" not found`, device: msg.device, action: msg.action });
           return;
         }
         const mac = dev.macs?.[0];
         const subnet = dev.subnet;
-        console.log(`command: ${msg.action} ${msg.device} mac=${mac || "none"} subnet=${subnet || "none"}`);
         try {
           this.sendTo(this.hubWS, {
             type: "execute",
@@ -165,12 +187,11 @@ export class DeviceDO extends DurableObject {
             ...(subnet ? { subnet } : {}),
           });
         } catch (e) {
-          this.sendError(ws, `failed to forward to hub: ${e}`, msg.device, msg.action);
+          this.sendTo(ws, { type: "error", message: `failed to forward to hub: ${e}`, device: msg.device, action: msg.action });
         }
         break;
       }
       case "command_result": {
-        // Forward hub's result to all UI clients
         for (const [uiWS, role] of this.wsRoles) {
           if (role === "ui") {
             this.sendTo(uiWS, msg);
