@@ -117,7 +117,13 @@ func pollDevice(peer TailscalePeer) DeviceState {
 		Hostname:    peer.HostName,
 		TailscaleIP: peer.TailAddr,
 		OS:          peer.OS,
-		Online:      false,
+		Macs:        []string{},
+		Interfaces:  []struct {
+			Name  string   `json:"name"`
+			MAC   string   `json:"mac"`
+			Addrs []string `json:"addrs"`
+		}{},
+		Online: false,
 	}
 
 	url := fmt.Sprintf("http://%s:9099/status", peer.TailAddr)
