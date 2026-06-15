@@ -17,7 +17,7 @@ function resourceBg(used: number, total: number): string {
   return "bg-emerald-500/40";
 }
 
-function OnlineSection(props: { d: DeviceOnline; onSleep: () => void; onShutdown: () => void }) {
+function OnlineSection(props: { d: DeviceOnline; onSleep: () => void }) {
   return (
     <>
       <div class="space-y-1.5 mb-3">
@@ -53,36 +53,14 @@ function OnlineSection(props: { d: DeviceOnline; onSleep: () => void; onShutdown
           </div>
         </div>
 
-        <div>
-          <div class="flex items-center justify-between text-[10px] mb-0.5">
-            <span class="text-zinc-600">Disk</span>
-            <span class={resourceColor(props.d.disk.used_gb, props.d.disk.total_gb)}>
-              {props.d.disk.used_gb.toFixed(0)} / {props.d.disk.total_gb.toFixed(0)} GB
-            </span>
-          </div>
-          <div class="h-1 bg-zinc-800 rounded-full overflow-hidden">
-            <div
-              class={`h-full rounded-full ${resourceBg(props.d.disk.used_gb, props.d.disk.total_gb)}`}
-              style={{
-                width: `${(props.d.disk.total_gb > 0 ? (props.d.disk.used_gb / props.d.disk.total_gb) * 100 : 0)}%`,
-              }}
-            />
-          </div>
-        </div>
       </div>
 
       <div class="flex items-center gap-1.5">
         <button
           onClick={props.onSleep}
-          class="flex-1 px-2 py-1 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 rounded text-[10px] text-amber-400/80 transition-colors"
+          class="w-full px-2 py-1 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 rounded text-[10px] text-amber-400/80 transition-colors"
         >
           sleep
-        </button>
-        <button
-          onClick={props.onShutdown}
-          class="flex-1 px-2 py-1 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded text-[10px] text-red-400/80 transition-colors"
-        >
-          shutdown
         </button>
       </div>
     </>
@@ -110,7 +88,6 @@ function OfflineSection(props: { d: DeviceOffline; onWake: () => void }) {
 export default function DeviceCard(props: {
   device: DeviceState;
   onSleep: () => void;
-  onShutdown: () => void;
   onWake: () => void;
 }) {
   const d = () => props.device;
@@ -143,7 +120,7 @@ export default function DeviceCard(props: {
         </div>
 
         <Show when={d().online}>
-          <OnlineSection d={d() as DeviceOnline} onSleep={props.onSleep} onShutdown={props.onShutdown} />
+          <OnlineSection d={d() as DeviceOnline} onSleep={props.onSleep} />
         </Show>
 
         <Show when={!d().online}>

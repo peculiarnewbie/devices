@@ -34,12 +34,7 @@ func TestOfflineDeviceJSONHasNoNullArrays(t *testing.T) {
 		TailscaleIP: "100.1.2.3",
 		OS:          "linux",
 		Macs:        []string{},
-		Interfaces: []struct {
-			Name  string   `json:"name"`
-			MAC   string   `json:"mac"`
-			Addrs []string `json:"addrs"`
-		}{},
-		Online: false,
+		Online:      false,
 	}
 
 	data, err := json.Marshal(d)
@@ -55,9 +50,6 @@ func TestOfflineDeviceJSONHasNoNullArrays(t *testing.T) {
 	if string(raw["macs"]) == "null" {
 		t.Errorf("macs marshaled to null, expected []")
 	}
-	if string(raw["interfaces"]) == "null" {
-		t.Errorf("interfaces marshaled to null, expected []")
-	}
 
 	// Verify the DO schema can parse this
 	var parsed DeviceState
@@ -67,16 +59,13 @@ func TestOfflineDeviceJSONHasNoNullArrays(t *testing.T) {
 	if parsed.Macs == nil {
 		t.Errorf("round-trip macs is nil")
 	}
-	if parsed.Interfaces == nil {
-		t.Errorf("round-trip interfaces is nil")
-	}
 }
 
 func TestNilSlicesMarshalToNull(t *testing.T) {
 	d := DeviceState{
 		Hostname: "test",
 		Online:   false,
-		// Macs and Interfaces are nil (zero value)
+		// Macs is nil (zero value)
 	}
 
 	data, err := json.Marshal(d)
@@ -90,8 +79,5 @@ func TestNilSlicesMarshalToNull(t *testing.T) {
 	// This documents the bug: nil slices become null
 	if string(raw["macs"]) != "null" {
 		t.Errorf("expected nil macs to marshal to null, got %s", string(raw["macs"]))
-	}
-	if string(raw["interfaces"]) != "null" {
-		t.Errorf("expected nil interfaces to marshal to null, got %s", string(raw["interfaces"]))
 	}
 }

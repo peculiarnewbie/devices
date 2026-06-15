@@ -1,26 +1,17 @@
 package main
 
 type DeviceState struct {
-	Hostname    string  `json:"hostname"`
-	TailscaleIP string  `json:"tailscale_ip"`
-	OS          string  `json:"os"`
+	Hostname    string   `json:"hostname"`
+	TailscaleIP string   `json:"tailscale_ip"`
+	OS          string   `json:"os"`
 	Macs        []string `json:"macs"`
-	Interfaces  []struct {
-		Name  string   `json:"name"`
-		MAC   string   `json:"mac"`
-		Addrs []string `json:"addrs"`
-	} `json:"interfaces"`
-	Subnet     string  `json:"subnet"`
-	Uptime     uint64  `json:"uptime"`
-	CPUPercent float64 `json:"cpu_percent"`
-	Memory     struct {
+	Subnet      string   `json:"subnet"`
+	Uptime      uint64   `json:"uptime"`
+	CPUPercent  float64  `json:"cpu_percent"`
+	Memory      struct {
 		UsedGB  float64 `json:"used_gb"`
 		TotalGB float64 `json:"total_gb"`
 	} `json:"memory"`
-	Disk struct {
-		UsedGB  float64 `json:"used_gb"`
-		TotalGB float64 `json:"total_gb"`
-	} `json:"disk"`
 	Online   bool  `json:"online"`
 	LastSeen int64 `json:"last_seen"`
 }

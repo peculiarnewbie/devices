@@ -118,12 +118,7 @@ func pollDevice(peer TailscalePeer) DeviceState {
 		TailscaleIP: peer.TailAddr,
 		OS:          peer.OS,
 		Macs:        []string{},
-		Interfaces:  []struct {
-			Name  string   `json:"name"`
-			MAC   string   `json:"mac"`
-			Addrs []string `json:"addrs"`
-		}{},
-		Online: false,
+		Online:      false,
 	}
 
 	url := fmt.Sprintf("http://%s:9099/status", peer.TailAddr)
@@ -167,7 +162,7 @@ func executeCommand(msg WSMessage) WSMessage {
 	switch msg.Action {
 	case "wake":
 		return executeWake(msg)
-	case "sleep", "shutdown":
+	case "sleep":
 		return executeDeviceAction(msg.Device, msg.Action)
 	default:
 		return WSMessage{Type: "command_result", Device: msg.Device, Action: msg.Action, OK: false, Message: fmt.Sprintf("unknown action: %s", msg.Action)}
@@ -219,19 +214,12 @@ func executeWake(msg WSMessage) WSMessage {
 
 func executeDeviceAction(hostname, action string) WSMessage {
 	if isSelf(hostname) {
-		var err error
-		switch action {
-		case "sleep":
-			err = suspend()
-		case "shutdown":
-			err = shutdown()
+		if err := suspend(); err != nil {
+			log.Printf("sleep self failed: %v", err)
+			return WSMessage{Type: "command_result", Device: hostname, Action: "sleep", OK: false, Message: fmt.Sprintf("sleep failed: %v", err)}
 		}
-		if err != nil {
-			log.Printf("%s self failed: %v", action, err)
-			return WSMessage{Type: "command_result", Device: hostname, Action: action, OK: false, Message: fmt.Sprintf("%s failed: %v", action, err)}
-		}
-		log.Printf("%s self: ok", action)
-		return WSMessage{Type: "command_result", Device: hostname, Action: action, OK: true, Message: fmt.Sprintf("%s sent", action)}
+		log.Printf("sleep self: ok")
+		return WSMessage{Type: "command_result", Device: hostname, Action: "sleep", OK: true, Message: "sleep sent"}
 	}
 
 	url := fmt.Sprintf("http://%s:9099/%s", hostname, action)

@@ -6,29 +6,48 @@ import (
 	"net"
 	"os"
 	"runtime"
-	"strings"
+	"sync"
 	"time"
 
 	"github.com/shirou/gopsutil/v4/cpu"
-	"github.com/shirou/gopsutil/v4/disk"
 	"github.com/shirou/gopsutil/v4/host"
 	"github.com/shirou/gopsutil/v4/mem"
 )
 
-type InterfaceInfo struct {
-	Name  string   `json:"name"`
-	MAC   string   `json:"mac"`
-	Addrs []string `json:"addrs"`
+var (
+	cpuMu           sync.RWMutex
+	cachedCPUPercent float64
+	cpuSamplerOnce  sync.Once
+)
+
+func startCPUSampler() {
+	cpuSamplerOnce.Do(func() {
+		// Initialize the baseline so the first real sample is meaningful.
+		_, _ = cpu.Percent(0, false)
+
+		go func() {
+			ticker := time.NewTicker(time.Second)
+			defer ticker.Stop()
+			for range ticker.C {
+				pct, err := cpu.Percent(0, false)
+				if err != nil {
+					log.Printf("cpu.Percent failed: %v", err)
+					continue
+				}
+				if len(pct) > 0 {
+					cpuMu.Lock()
+					cachedCPUPercent = pct[0]
+					cpuMu.Unlock()
+				}
+			}
+		}()
+	})
 }
 
-type MemoryInfo struct {
-	UsedGB  float64 `json:"used_gb"`
-	TotalGB float64 `json:"total_gb"`
-}
-
-type DiskInfo struct {
-	UsedGB  float64 `json:"used_gb"`
-	TotalGB float64 `json:"total_gb"`
+func getCPUPercent() float64 {
+	cpuMu.RLock()
+	defer cpuMu.RUnlock()
+	return cachedCPUPercent
 }
 
 func collectStatus() *DeviceState {
@@ -41,14 +60,6 @@ func collectStatus() *DeviceState {
 	if err != nil {
 		log.Printf("mem.VirtualMemory failed: %v", err)
 	}
-	diskinfo, err := disk.Usage("/")
-	if err != nil {
-		log.Printf("disk.Usage failed: %v", err)
-	}
-	cpuPercent, err := cpu.Percent(1*time.Second, false)
-	if err != nil {
-		log.Printf("cpu.Percent failed: %v", err)
-	}
 
 	var memoryUsedGB, memoryTotalGB float64
 	if vmem != nil {
@@ -56,46 +67,16 @@ func collectStatus() *DeviceState {
 		memoryTotalGB = float64(vmem.Total) / (1024 * 1024 * 1024)
 	}
 
-	var diskUsedGB, diskTotalGB float64
-	if diskinfo != nil {
-		diskUsedGB = float64(diskinfo.Used) / (1024 * 1024 * 1024)
-		diskTotalGB = float64(diskinfo.Total) / (1024 * 1024 * 1024)
-	}
-
-	var cpuPct float64
-	if len(cpuPercent) > 0 {
-		cpuPct = cpuPercent[0]
-	}
-
-	tailscaleIP, subnet, ifaces := collectNetInfo()
-
-	macs := make([]string, 0)
-	for _, iface := range ifaces {
-		if iface.MAC != "" {
-			macs = append(macs, iface.MAC)
-		}
-	}
-
-	interfaces := make([]struct {
-		Name  string   `json:"name"`
-		MAC   string   `json:"mac"`
-		Addrs []string `json:"addrs"`
-	}, len(ifaces))
-	for i, iface := range ifaces {
-		interfaces[i].Name = iface.Name
-		interfaces[i].MAC = iface.MAC
-		interfaces[i].Addrs = iface.Addrs
-	}
+	tailscaleIP, subnet, macs := collectNetInfo()
 
 	return &DeviceState{
 		Hostname:    hostname,
 		TailscaleIP: tailscaleIP,
 		OS:          runtime.GOOS,
 		Macs:        macs,
-		Interfaces:  interfaces,
 		Subnet:      subnet,
 		Uptime:      hinfo.Uptime,
-		CPUPercent:  cpuPct,
+		CPUPercent:  getCPUPercent(),
 		Memory: struct {
 			UsedGB  float64 `json:"used_gb"`
 			TotalGB float64 `json:"total_gb"`
@@ -103,36 +84,25 @@ func collectStatus() *DeviceState {
 			UsedGB:  memoryUsedGB,
 			TotalGB: memoryTotalGB,
 		},
-		Disk: struct {
-			UsedGB  float64 `json:"used_gb"`
-			TotalGB float64 `json:"total_gb"`
-		}{
-			UsedGB:  diskUsedGB,
-			TotalGB: diskTotalGB,
-		},
 		Online:   true,
 		LastSeen: time.Now().UnixMilli(),
 	}
 }
 
-func collectNetInfo() (tailscaleIP string, subnet string, ifaces []InterfaceInfo) {
+func collectNetInfo() (tailscaleIP string, subnet string, macs []string) {
 	interfaces, err := net.Interfaces()
 	if err != nil {
 		return
 	}
 
+	seenMACs := make(map[string]bool)
 	for _, iface := range interfaces {
 		if iface.Flags&net.FlagUp == 0 {
 			continue
 		}
 
 		addrs, _ := iface.Addrs()
-
-		addrsStr := make([]string, 0)
 		for _, addr := range addrs {
-			ipAddr := strings.Split(addr.String(), "/")[0]
-			addrsStr = append(addrsStr, ipAddr)
-
 			ipnet, ok := addr.(*net.IPNet)
 			if !ok {
 				continue
@@ -152,12 +122,9 @@ func collectNetInfo() (tailscaleIP string, subnet string, ifaces []InterfaceInfo
 		}
 
 		mac := iface.HardwareAddr.String()
-		if mac != "" {
-			ifaces = append(ifaces, InterfaceInfo{
-				Name:  iface.Name,
-				MAC:   mac,
-				Addrs: addrsStr,
-			})
+		if mac != "" && !seenMACs[mac] {
+			seenMACs[mac] = true
+			macs = append(macs, mac)
 		}
 	}
 

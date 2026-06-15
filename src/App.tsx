@@ -68,16 +68,15 @@ export default function App() {
       const cached = loadMacCache();
       if (Object.keys(cached).length > 0) {
         setDevices(
-          Object.entries(cached).map(([hostname, macs]) => ({
-            hostname,
-            tailscale_ip: "",
-            os: "",
-            macs,
-            interfaces: [],
-            subnet: "",
-            online: false as const,
-            last_seen: 0,
-          })),
+        Object.entries(cached).map(([hostname, macs]) => ({
+          hostname,
+          tailscale_ip: "",
+          os: "",
+          macs,
+          subnet: "",
+          online: false as const,
+          last_seen: 0,
+        })),
         );
       }
       connect();
@@ -245,7 +244,6 @@ export default function App() {
                   <DeviceCard
                     device={device}
                     onSleep={() => sendCommand(device.hostname, "sleep")}
-                    onShutdown={() => sendCommand(device.hostname, "shutdown")}
                     onWake={() => {
                       if (!device.macs?.length) {
                         showToast({

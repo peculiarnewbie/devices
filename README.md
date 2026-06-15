@@ -1,6 +1,6 @@
 # simple-devices
 
-Self-hosted device monitoring and remote power management for your [Tailscale](https://tailscale.com) tailnet. View online/offline status, CPU, RAM, disk, and uptime of every device, and remotely wake, sleep, or shutdown any device from a web UI.
+Self-hosted device monitoring and remote power management for your [Tailscale](https://tailscale.com) tailnet. View online/offline status, CPU, RAM, and uptime of every device, and remotely wake or sleep any device from a web UI.
 
 **Live:** [devices.peculiarnewbie.com](https://devices.peculiarnewbie.com)
 
@@ -14,7 +14,7 @@ Browser UI  ←─ws─→  Cloudflare DO (DeviceDO)  ←─ws─→  Hub Agent 
                                                   Leaf Agents (Go, :9099)
 ```
 
-- **Leaf Agent** — runs on every device. Lightweight HTTP server on port `9099` that serves local system metrics (`/status`) and handles power commands (`/sleep`, `/shutdown`, `/wake`).
+- **Leaf Agent** — runs on every device. Lightweight HTTP server on port `9099` that serves local system metrics (`/status`) and handles power commands (`/sleep`, `/wake`).
 - **Hub Agent** — runs on one device. Maintains a WebSocket to the Cloudflare Durable Object. When polled, it discovers all Tailscale peers and concurrently HTTP-polls each one's `:9099/status` endpoint.
 - **Cloudflare Worker + Durable Object** — always-on cloud relay. Holds canonical device state, brokers WebSocket messages between hub and browser clients, handles auth (Google OAuth).
 - **SolidJS Frontend** — single-page app served as a static asset by the Worker.
@@ -140,10 +140,9 @@ The leaf agent runs on every device you want to monitor. It serves system metric
 ```
 
 The agent listens on `:9099` and exposes:
-- `GET /status` — full device state (CPU, RAM, disk, uptime, network)
+- `GET /status` — full device state (CPU, RAM, uptime, network)
 - `GET /health` — simple health check
 - `POST /sleep` — suspend the device
-- `POST /shutdown` — shut down the device
 - `POST /wake` — send a Wake-on-LAN magic packet (expects `{"mac":"..."}` body)
 
 ## Installing the Hub Agent
@@ -246,12 +245,12 @@ go/
 │   ├── main.go            # Entry point: hub mode vs agent mode
 │   ├── hub.go             # Hub: WebSocket to DO, polls all peers
 │   ├── agent.go           # Agent: HTTP server on :9099
-│   ├── status.go          # collectStatus(): CPU, RAM, disk, network
+│   ├── status.go          # collectStatus(): CPU, RAM, uptime, network
 │   ├── tailscale.go       # getTailscalePeers() via tailscale status
 │   ├── types.go           # Shared types (DeviceState, WSMessage, etc.)
 │   ├── wol.go             # Wake-on-LAN wrapper
-│   ├── actions_unix.go    # suspend()/shutdown() for Linux/macOS
-│   ├── actions_windows.go # suspend()/shutdown() for Windows
+│   ├── actions_unix.go    # suspend() for Linux/macOS
+│   ├── actions_windows.go # suspend() for Windows
 │   ├── main_unix.go       # Unix service detection (no-op)
 │   └── main_windows.go    # Windows Service support
 └── pkg/wol/

@@ -8,7 +8,6 @@ function toDeviceState(row: DeviceRow): DeviceState {
     tailscale_ip: row.tailscale_ip,
     os: row.os,
     macs: row.macs,
-    interfaces: row.interfaces,
     subnet: row.subnet,
   };
   if (row.online) {
@@ -18,7 +17,6 @@ function toDeviceState(row: DeviceRow): DeviceState {
       uptime: row.uptime,
       cpu_percent: row.cpu_percent,
       memory: row.memory,
-      disk: row.disk,
       last_seen: row.last_seen,
     };
   }
@@ -153,13 +151,12 @@ export class DeviceDO extends DurableObject {
         for (const incoming of msg.devices) {
           const existing = this.devices.get(incoming.hostname);
           const last_seen = incoming.online ? Date.now() : (incoming.last_seen || (existing?.last_seen ?? Date.now()));
-          const device: DeviceRow = {
-            ...incoming,
-            last_seen,
-            macs: incoming.macs.length > 0 ? incoming.macs : (existing?.macs ?? []),
-            interfaces: incoming.interfaces.length > 0 ? incoming.interfaces : (existing?.interfaces ?? []),
-            subnet: incoming.subnet || (existing?.subnet ?? ""),
-          };
+  const device: DeviceRow = {
+    ...incoming,
+    last_seen,
+    macs: incoming.macs.length > 0 ? incoming.macs : (existing?.macs ?? []),
+    subnet: incoming.subnet || (existing?.subnet ?? ""),
+  };
           this.devices.set(device.hostname, device);
         }
         await this.ctx.storage.put("devices", Object.fromEntries(this.devices));

@@ -13,14 +13,10 @@ export const DeviceRowSchema = Struct({
   tailscale_ip: String,
   os: String,
   macs: Arr(String),
-  interfaces: Arr(
-    Struct({ name: String, mac: String, addrs: Arr(String) }),
-  ),
   subnet: String,
   uptime: Number,
   cpu_percent: Number,
   memory: Struct({ used_gb: Number, total_gb: Number }),
-  disk: Struct({ used_gb: Number, total_gb: Number }),
   online: Boolean,
   last_seen: Number,
 });
@@ -33,9 +29,6 @@ const DeviceIdentityFields = {
   tailscale_ip: String,
   os: String,
   macs: Arr(String),
-  interfaces: Arr(
-    Struct({ name: String, mac: String, addrs: Arr(String) }),
-  ),
   subnet: String,
 } as const;
 
@@ -45,7 +38,6 @@ export const DeviceOnlineSchema = Struct({
   uptime: Number,
   cpu_percent: Number,
   memory: Struct({ used_gb: Number, total_gb: Number }),
-  disk: Struct({ used_gb: Number, total_gb: Number }),
   last_seen: Number,
 });
 export interface DeviceOnline extends SchemaOf<typeof DeviceOnlineSchema> {}
@@ -67,7 +59,7 @@ export type DeviceState = SchemaOf<typeof DeviceStateSchema>;
 // ---- Inbound WebSocket messages (what the DO receives) ----
 
 const RoleSchema = Union([Literal("hub"), Literal("ui")]);
-const ActionSchema = Union([Literal("sleep"), Literal("shutdown"), Literal("wake")]);
+const ActionSchema = Union([Literal("sleep"), Literal("wake")]);
 
 const RegisterSchema = Struct({ type: Literal("register"), role: RoleSchema });
 const RefreshSchema = Struct({ type: Literal("refresh") });

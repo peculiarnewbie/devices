@@ -13,7 +13,6 @@ func runAgent() error {
 	mux.HandleFunc("/health", handleHealth)
 	mux.HandleFunc("/status", handleStatus)
 	mux.HandleFunc("/sleep", handleSleep)
-	mux.HandleFunc("/shutdown", handleShutdown)
 	mux.HandleFunc("/wake", handleWake)
 
 	log.Printf("agent listening on :9099")
@@ -43,19 +42,6 @@ func handleSleep(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"action": "sleep", "status": "ok"})
-}
-
-func handleShutdown(w http.ResponseWriter, r *http.Request) {
-	log.Println("shutdown requested")
-	go func() {
-		time.Sleep(200 * time.Millisecond)
-		if err := shutdown(); err != nil {
-			log.Printf("shutdown failed: %v", err)
-		}
-	}()
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"action": "shutdown", "status": "ok"})
 }
 
 func handleWake(w http.ResponseWriter, r *http.Request) {

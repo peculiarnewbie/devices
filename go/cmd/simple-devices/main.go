@@ -24,6 +24,8 @@ func main() {
 		return
 	}
 
+	startCPUSampler()
+
 	if *hubURL != "" {
 		runHubMode(*hubURL)
 	} else {

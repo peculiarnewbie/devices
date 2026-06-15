@@ -167,7 +167,7 @@ export function createDeviceSocket(cb: DeviceCallback, statusCb: StatusCallback,
     ws = socket;
   }
 
-  function sendCommand(device: string, action: "sleep" | "shutdown" | "wake") {
+  function sendCommand(device: string, action: "sleep" | "wake") {
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: "command", device, action }));
     } else {

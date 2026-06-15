@@ -18,14 +18,3 @@ func suspend() error {
 		return fmt.Errorf("unsupported os: %s", runtime.GOOS)
 	}
 }
-
-func shutdown() error {
-	switch runtime.GOOS {
-	case "linux":
-		return exec.Command("shutdown", "-h", "now").Run()
-	case "darwin":
-		return exec.Command("shutdown", "-h", "now").Run()
-	default:
-		return fmt.Errorf("unsupported os: %s", runtime.GOOS)
-	}
-}

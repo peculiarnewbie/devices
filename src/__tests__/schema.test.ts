@@ -17,12 +17,10 @@ function validRow(overrides?: Partial<DeviceRow>): DeviceRow {
     tailscale_ip: "100.1.2.3",
     os: "linux",
     macs: ["aa:bb:cc:dd:ee:ff"],
-    interfaces: [{ name: "eth0", mac: "aa:bb:cc:dd:ee:ff", addrs: ["192.168.1.1/24"] }],
     subnet: "192.168.1.0/24",
     uptime: 3600,
     cpu_percent: 45.2,
     memory: { used_gb: 4.2, total_gb: 16 },
-    disk: { used_gb: 120, total_gb: 512 },
     online: true,
     last_seen: Date.now(),
     ...overrides,
@@ -63,7 +61,7 @@ describe("DeviceOnlineSchema", () => {
 
   it("rejects online: false", () => {
     const data = Object.fromEntries(
-      Object.entries(validRow({ online: false })).filter(([k]) => k !== "uptime" && k !== "cpu_percent" && k !== "memory" && k !== "disk"),
+      Object.entries(validRow({ online: false })).filter(([k]) => k !== "uptime" && k !== "cpu_percent" && k !== "memory"),
     );
     expect(() => decodeUnknownSync(DeviceOnlineSchema)(data)).toThrow();
   });
@@ -76,7 +74,6 @@ describe("DeviceOfflineSchema", () => {
       tailscale_ip: "100.1.2.3",
       os: "linux",
       macs: ["aa:bb:cc:dd:ee:ff"],
-      interfaces: [{ name: "eth0", mac: "aa:bb:cc:dd:ee:ff", addrs: ["192.168.1.1/24"] }],
       subnet: "192.168.1.0/24",
       online: false as const,
       last_seen: 1700000000000,
@@ -90,7 +87,6 @@ describe("DeviceOfflineSchema", () => {
       tailscale_ip: "100.1.2.3",
       os: "linux",
       macs: [],
-      interfaces: [],
       subnet: "",
       online: false as const,
       last_seen: 1700000000000,
@@ -115,10 +111,10 @@ describe("InboundMessageSchema", () => {
     expect(() => decodeUnknownSync(InboundMessageSchema)(msg)).not.toThrow();
   });
 
-  it("accepts an update with empty macs and interfaces (offline device)", () => {
+  it("accepts an update with empty macs (offline device)", () => {
     const msg = {
       type: "update" as const,
-      devices: [validRow({ macs: [], interfaces: [], online: false })],
+      devices: [validRow({ macs: [], online: false })],
     };
     expect(() => decodeUnknownSync(InboundMessageSchema)(msg)).not.toThrow();
   });
@@ -127,14 +123,6 @@ describe("InboundMessageSchema", () => {
     const msg = {
       type: "update" as const,
       devices: [{ ...validRow(), macs: null }],
-    };
-    expect(() => decodeUnknownSync(InboundMessageSchema)(msg)).toThrow();
-  });
-
-  it("rejects an update with null interfaces", () => {
-    const msg = {
-      type: "update" as const,
-      devices: [{ ...validRow(), interfaces: null }],
     };
     expect(() => decodeUnknownSync(InboundMessageSchema)(msg)).toThrow();
   });
