@@ -23,7 +23,7 @@ impl CpuSampler {
     pub fn start(&self) -> JoinHandle<()> {
         let value = self.value.clone();
         tokio::spawn(async move {
-            let mut system = System::new_all();
+            let mut system = System::new();
             // Initial refresh to establish a baseline.
             system.refresh_cpu_usage();
 

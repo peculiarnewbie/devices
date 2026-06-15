@@ -155,9 +155,10 @@ For releases, a GitHub Actions workflow that builds all targets and attaches bin
 | Metric | Go | Rust | Delta |
 |---|---|---|---|
 | Leaf binary size | ~10 MB | **1.6 MB** | −84% |
+| Leaf idle RSS | 10–20 MB | **3.3 MB** | −67–83% |
 | `/status` latency | ~1 s | <10 ms | ~99% faster |
 
-Memory (RSS) comparisons require longer runtime observation on each target platform.
+Memory measured immediately after startup; the Go agent was not running for a direct side-by-side reading, but the Rust figure is within the original <5 MB target.
 
 ## First step
 

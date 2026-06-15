@@ -26,7 +26,7 @@ struct AppState {
     system: Arc<Mutex<System>>,
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
@@ -43,7 +43,7 @@ pub async fn run_server() -> anyhow::Result<()> {
 
     let state = AppState {
         cpu_sampler,
-        system: Arc::new(Mutex::new(System::new_all())),
+        system: Arc::new(Mutex::new(System::new())),
     };
 
     let app = Router::new()
