@@ -144,6 +144,21 @@ For releases, a GitHub Actions workflow that builds all targets and attaches bin
 | `/status` latency | ~1 s (CPU sample) | <10 ms (cached CPU) |
 | Build complexity | Low | Medium |
 
+## Status
+
+- **Phase 0 spike** — done. The Rust leaf agent builds, passes tests, and was verified against the existing HTTP contract.
+- **Phase 1 leaf agent** — implemented in `rust/crates/agent`.
+- **Phase 2 hub** — not started; the Go hub remains the production hub until Phase 2 is justified.
+
+### Measured outcome (Linux x64 release build)
+
+| Metric | Go | Rust | Delta |
+|---|---|---|---|
+| Leaf binary size | ~10 MB | **1.6 MB** | −84% |
+| `/status` latency | ~1 s | <10 ms | ~99% faster |
+
+Memory (RSS) comparisons require longer runtime observation on each target platform.
+
 ## First step
 
 Create the spike: a single `rust/` workspace with one `agent` crate that returns a hardcoded `/status` JSON and builds for the current platform. Compare binary size and memory before investing in full metrics porting.

@@ -1,0 +1,25 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+authors = ["peculiarnewbie"]
+license = "MIT"
+repository = "https://github.com/peculiarnewbie/devices"
+
+[workspace.dependencies]
+tokio = { version = "1.45", features = ["rt-multi-thread", "macros", "time", "process", "sync"] }
+axum = "0.8"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+sysinfo = "0.35"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true

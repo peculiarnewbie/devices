@@ -7,3 +7,4 @@ go/simple-devices.exe
 *.log
 .wrangler
 .env
+rust/target
